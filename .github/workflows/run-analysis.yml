@@ -40,13 +40,34 @@ jobs:
               exit 1
             fi
             echo "Downloading $out"
+            # Handle Google Drive large-file confirmation redirect
+            curl -fL -c /tmp/gdrive_cookies.txt \
+              "${url}&confirm=$(curl -sc /tmp/gdrive_cookies.txt "${url}" | grep -o 'confirm=[^&"]*' | head -1 | cut -d= -f2)" \
+              -o "$out" 2>/dev/null || \
             curl -fL "$url" -o "$out"
+          }
+
+          validate_fastq() {
+            local f="$1"
+            if ! gzip -t "$f" 2>/dev/null; then
+              echo "ERROR: $f is not a valid gzip file — Google Drive may have returned an HTML page."
+              echo "File head:"
+              head -c 200 "$f"
+              exit 1
+            fi
+            echo "OK: $f"
           }
 
           download_if_missing "$WT_R1_URL" "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R1.fastq.gz"
           download_if_missing "$WT_R2_URL" "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R2.fastq.gz"
           download_if_missing "$MT_R1_URL" "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R1.fastq.gz"
           download_if_missing "$MT_R2_URL" "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R2.fastq.gz"
+
+          echo "Validating downloaded files..."
+          validate_fastq "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R1.fastq.gz"
+          validate_fastq "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R2.fastq.gz"
+          validate_fastq "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R1.fastq.gz"
+          validate_fastq "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R2.fastq.gz"
 
       - name: Build analysis image
         run: docker build -t igrek:latest .

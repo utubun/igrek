@@ -33,7 +33,7 @@ fastp \
   --merge \
   --merged_out cln/preprocessing/SH612x19/merged.fastq.gz \
   --json cln/preprocessing/SH612x19/report.json \
-  --html cln/preprocessing/SH612x19/report.html > /dev/null 2>&1
+  --html cln/preprocessing/SH612x19/report.html
 
 
 echo "Running fastp for SH612x20..."
@@ -54,7 +54,7 @@ fastp \
   --merged_out cln/preprocessing/SH612x20/merged.fastq.gz \
   --include_unmerged \
   --json cln/preprocessing/SH612x20/report.json \
-  --html cln/preprocessing/SH612x20/report.html > /dev/null 2>&1
+  --html cln/preprocessing/SH612x20/report.html
 
 
 echo "Downloading reference genome (PA14, GCF_000014625.1)..."
