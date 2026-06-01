@@ -120,7 +120,7 @@ Current final table (nonsynonymous candidates after statistical filtering):
 | PA14_RS19850 | PA14_RS19850 | 4345430 | ATG → ATA | M → I | 258 | pass | pass | pass | 2.1393148982346e-32 |
 | PA14_RS14050 | PA14_RS14050 | 3065715 | GGC → GCC | G → A | 106 | pass | fail | pass | 0.00558944648590917 |
 | PA14_RS16675 | PA14_RS16675 | 3670539 | CCT → CTT | P → L | 180 | pass | pass | pass | 0.0389268040518032 |
-| PA14_RS04145 | PA14_RS04145 | 883169 | GGC → GCC | G → A | 37 | pass | pass | pass | 0.0409566020740156 |
+| PA14_RS04145 | PA14_RS04145 | 883169 | GGC → GCC | G → A | 37 | pass | pass | pass | 0.0409566020740155 |
 
 Interpretation notes:
 
