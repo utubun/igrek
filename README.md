@@ -53,12 +53,43 @@ Analysis outputs:
 
 ## How to run
 
+### Local run
+
 ```bash
 make build
 make run
 ```
 
 This runs the containerized workflow and writes outputs under `data/cln/`.
+
+### Manual run on GitHub Actions
+
+Use the `Run Analysis (Manual)` workflow in GitHub Actions.
+
+Before first run, add these repository secrets in GitHub:
+
+- `IGREK_WT_R1_URL`
+- `IGREK_WT_R2_URL`
+- `IGREK_MT_R1_URL`
+- `IGREK_MT_R2_URL`
+
+These must be direct download URLs for the 4 FASTQ files. The workflow downloads raw reads, runs the full pipeline, and uploads artifacts.
+
+---
+
+## CI/CD
+
+The repository includes two GitHub Actions workflows:
+
+1. `CI` (`.github/workflows/ci.yml`)
+   - Trigger: every push to `main` and every pull request
+   - Purpose: fast checks for code/config breakage
+   - Runs: R script parse checks, shell syntax check, Docker Compose config validation, Docker image build
+
+2. `Run Analysis (Manual)` (`.github/workflows/run-analysis.yml`)
+   - Trigger: manual (`workflow_dispatch`)
+   - Purpose: full end-to-end analysis on a GitHub runner
+   - Outputs uploaded as artifacts: `joint.vcf`, `counts.tsv`, `qc_all.csv`, `qc_filt.csv`, `final_candidates.csv`, updated `README.md`
 
 ---
 
