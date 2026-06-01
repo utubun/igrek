@@ -23,6 +23,9 @@ jobs:
       - name: Ensure raw input directory
         run: mkdir -p data/raw
 
+      - name: Install gdown
+        run: pip install --quiet gdown
+
       - name: Download raw FASTQ files when missing
         shell: bash
         run: |
@@ -40,22 +43,18 @@ jobs:
               exit 1
             fi
             echo "Downloading $out"
-            # Handle Google Drive large-file confirmation redirect
-            curl -fL -c /tmp/gdrive_cookies.txt \
-              "${url}&confirm=$(curl -sc /tmp/gdrive_cookies.txt "${url}" | grep -o 'confirm=[^&"]*' | head -1 | cut -d= -f2)" \
-              -o "$out" 2>/dev/null || \
-            curl -fL "$url" -o "$out"
+            gdown --fuzzy "$url" -O "$out"
           }
 
           validate_fastq() {
             local f="$1"
             if ! gzip -t "$f" 2>/dev/null; then
-              echo "ERROR: $f is not a valid gzip file — Google Drive may have returned an HTML page."
+              echo "ERROR: $f is not a valid gzip file."
               echo "File head:"
               head -c 200 "$f"
               exit 1
             fi
-            echo "OK: $f"
+            echo "OK: $f ($(du -sh "$f" | cut -f1))"
           }
 
           download_if_missing "$WT_R1_URL" "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R1.fastq.gz"
