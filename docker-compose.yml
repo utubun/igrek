@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  igrek:
+    platform: linux/amd64
+    build: .
+    image: igrek:latest
+    volumes:
+      - ./data:/data
+      - ./entrypoint.sh:/entrypoint.sh
+    working_dir: /data
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    mem_limit: 16g

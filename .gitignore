@@ -1,0 +1,8 @@
+.DS_Store
+.Rhistory
+.RData
+
+# raw inputs and generated large intermediates
+data/raw/
+data/cln/mapping/
+data/cln/preprocessing/
