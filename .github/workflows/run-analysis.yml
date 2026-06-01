@@ -31,6 +31,19 @@ jobs:
         run: |
           set -euo pipefail
 
+          extract_drive_id() {
+            local url="$1"
+            if [[ "$url" =~ drive\.google\.com/file/d/([^/]+) ]]; then
+              echo "${BASH_REMATCH[1]}"
+              return
+            fi
+            if [[ "$url" =~ [\?\&]id=([^\&]+) ]]; then
+              echo "${BASH_REMATCH[1]}"
+              return
+            fi
+            echo ""
+          }
+
           download_if_missing() {
             local url="$1"
             local out="$2"
@@ -43,7 +56,17 @@ jobs:
               exit 1
             fi
             echo "Downloading $out"
-            gdown --fuzzy "$url" -O "$out"
+            if [[ "$url" == *"drive.google.com"* ]]; then
+              local file_id
+              file_id="$(extract_drive_id "$url")"
+              if [[ -z "$file_id" ]]; then
+                echo "ERROR: Could not extract Google Drive file id from URL for $out"
+                exit 1
+              fi
+              gdown "$file_id" -O "$out"
+            else
+              gdown "$url" -O "$out"
+            fi
           }
 
           validate_fastq() {
