@@ -6,7 +6,7 @@ build:
 run:
 	docker compose up
 	Rscript src/main.R
-	Rscript src/update_readme_table.R
+	Rscript src/update_readme.R
 
 up:
 	docker compose up --build

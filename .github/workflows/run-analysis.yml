@@ -1,0 +1,73 @@
+name: Run Analysis (Manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      WT_R1_URL: ${{ secrets.IGREK_WT_R1_URL }}
+      WT_R2_URL: ${{ secrets.IGREK_WT_R2_URL }}
+      MT_R1_URL: ${{ secrets.IGREK_MT_R1_URL }}
+      MT_R2_URL: ${{ secrets.IGREK_MT_R2_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure raw input directory
+        run: mkdir -p data/raw
+
+      - name: Download raw FASTQ files when missing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          download_if_missing() {
+            local url="$1"
+            local out="$2"
+            if [[ -f "$out" ]]; then
+              echo "Already present: $out"
+              return
+            fi
+            if [[ -z "$url" ]]; then
+              echo "Missing URL secret for $out"
+              exit 1
+            fi
+            echo "Downloading $out"
+            curl -fL "$url" -o "$out"
+          }
+
+          download_if_missing "$WT_R1_URL" "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R1.fastq.gz"
+          download_if_missing "$WT_R2_URL" "data/raw/SH612x19_251023_LH00255_A235FKJLT3_R2.fastq.gz"
+          download_if_missing "$MT_R1_URL" "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R1.fastq.gz"
+          download_if_missing "$MT_R2_URL" "data/raw/SH612x20_251023_LH00255_A235FKJLT3_R2.fastq.gz"
+
+      - name: Build analysis image
+        run: docker build -t igrek:latest .
+
+      - name: Run containerized preprocessing/calling
+        run: docker compose up --abort-on-container-exit
+
+      - name: Run containerized R postprocessing
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            igrek:latest \
+            Rscript src/main.R
+
+      - name: Upload analysis outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: igrek-analysis-${{ github.run_id }}
+          path: |
+            data/cln/variants/joint.vcf
+            data/cln/variants/counts.tsv
+            data/cln/variants/qc_all.csv
+            data/cln/variants/qc_filt.csv
+            data/cln/variants/final_candidates.csv
+            README.md
