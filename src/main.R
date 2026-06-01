@@ -38,7 +38,7 @@ pval <- mapply(
 # add raw, and adjusted p-values to the data
 dat <- dat |>
     dplyr::mutate(
-        queryid         = dplyr::row_number(),
+        query_id        = dplyr::row_number(),
         raw_pvalue      = pval,
         adjusted_pvalue = p.adjust(pval, method = 'BH')
     )
@@ -79,143 +79,118 @@ res <- coding |>
         synonymous = CONSEQUENCE,
         adjusted_pvalue
     ) |>
-    dplyr::mutate(synonymous = as.character(synonymous) == 'synonymous') |>
-    dplyr::filter(adjusted_pvalue <= 0.05, !synonymous)
+    dplyr::mutate(
+        synonymous    = as.character(synonymous) == 'synonymous',
+        codone        = sprintf("%s → %s", codone_reference, codone_variant),
+        aminoacid     = sprintf("%s → %s", aa_reference, aa_variant),
+    ) |>
+    dplyr::select(!matches("adjusted_pvalue"))
 
 # build QC metrics for selected variants from VCF INFO fields
 vcf <- VariantAnnotation::readVcf('data/cln/variants/joint.vcf')
-dp4 <- info(vcf)$DP4
 
-pluck_int1 <- function(x) {
-    vapply(
-        as.list(x),
-        function(el) {
-            if (length(el) == 0) {
-                return(NA_integer_)
-            }
-            as.integer(el[[1]])
-        },
-        integer(1)
-    )
-}
-
-pluck_num1 <- function(x) {
-    vapply(
-        as.list(x),
-        function(el) {
-            if (length(el) == 0) {
-                return(NA_real_)
-            }
-            as.numeric(el[[1]])
-        },
-        numeric(1)
-    )
-}
-
-dp <- pluck_int1(info(vcf)$DP)
-mq <- pluck_num1(info(vcf)$MQ)
-
-dp4_mat <- t(vapply(
-    as.list(dp4),
-    function(el) {
-        z <- as.integer(el)
-        out <- rep(NA_integer_, 4)
-        out[seq_len(min(length(z), 4))] <- z[seq_len(min(length(z), 4))]
-        out
-    },
-    integer(4)
-))
-
-vcf_qc <- tibble::tibble(
-    seqnames = as.character(GenomicRanges::seqnames(rowRanges(vcf))),
-    pos = GenomicRanges::start(rowRanges(vcf)),
-    dp = dp,
-    mq = mq,
-    ref_fwd = dp4_mat[, 1],
-    ref_rev = dp4_mat[, 2],
-    alt_fwd = dp4_mat[, 3],
-    alt_rev = dp4_mat[, 4]
-)
-
-# Backward-compatible guards for interactive sessions with stale objects
-if (!'queryid' %in% names(dat)) {
-    dat <- dat |>
-        dplyr::mutate(queryid = dplyr::row_number())
-}
-
-if (!'queryid' %in% names(res)) {
-    if ('QUERYID' %in% names(res)) {
-        res <- res |>
-            dplyr::mutate(queryid = QUERYID)
-    } else {
-        warning('res has no queryid/QUERYID; using fallback join by seqnames+pos+alt. Rerun full script for deterministic QUERYID mapping.')
-    }
-}
-
-if ('queryid' %in% names(res)) {
-    qc <- res |>
-        dplyr::distinct(queryid, seqnames, pos, gene, alt, pvalue) |>
-        dplyr::left_join(
-            dat |>
-                dplyr::transmute(
-                    queryid,
-                    wt_ref,
-                    wt_alt,
-                    mt_ref,
-                    mt_alt,
-                    wt_depth = wt_ref + wt_alt,
-                    mt_depth = mt_ref + mt_alt,
-                    wt_af = wt_alt / (wt_ref + wt_alt),
-                    mt_af = mt_alt / (mt_ref + mt_alt)
-                ),
-            by = 'queryid'
-        )
-} else {
-    qc <- res |>
-        dplyr::distinct(seqnames, pos, gene, alt, pvalue) |>
-        dplyr::left_join(
-            dat |>
-                dplyr::transmute(
-                    seqnames = chrom,
-                    pos,
-                    alt,
-                    wt_ref,
-                    wt_alt,
-                    mt_ref,
-                    mt_alt,
-                    wt_depth = wt_ref + wt_alt,
-                    mt_depth = mt_ref + mt_alt,
-                    wt_af = wt_alt / (wt_ref + wt_alt),
-                    mt_af = mt_alt / (mt_ref + mt_alt)
-                ),
-            by = c('seqnames', 'pos', 'alt')
-        )
-}
-
-qc <- qc |>
-    dplyr::left_join(vcf_qc, by = c('seqnames', 'pos')) |>
+qc <- data.frame(rowRanges(vcf)) |>
+    dplyr::mutate(
+        dp  = info(vcf)$DP,
+        mq  = info(vcf)$MQ,
+    ) |>
+    bind_cols(
+        as.data.frame(as.matrix(info(vcf)$DP4)) |>
+          setNames(c("ref_fwd", "ref_rev", "alt_fwd", "alt_rev"))
+    ) |>
+    dplyr::rename_with(tolower) |>
     dplyr::mutate(
         strand_ok = alt_fwd >= 3 & alt_rev >= 3,
-        mq_ok = mq >= 40,
-        depth_ok = wt_depth >= 10 & mt_depth >= 10,
-        neighborhood_density = purrr::map2_int(
-            seqnames,
-            pos,
-            \(chr, p) {
-                rr <- GenomicRanges::GRanges(
-                    seqnames = chr,
-                    ranges = IRanges(start = max(1L, p - 20L), end = p + 20L)
-                )
-                sum(IRanges::overlapsAny(rowRanges(vcf), rr))
-            }
-        )
+        mq_ok     = mq > 40
     ) |>
-    dplyr::arrange(pvalue)
+    dplyr::select(
+        seqnames,
+        pos = start,
+        dp,
+        mq,
+        ref_fwd,
+        alt_fwd,
+        ref_rev,
+        alt_rev,
+        strand_ok
+    )
+
+# grab dat and res metrics
+qc <- dat |>
+  dplyr::mutate(
+    wt_depth = wt_ref + wt_alt,
+    mt_depth = mt_ref + mt_alt,
+    wt_af     = wt_alt / wt_depth,
+    mt_af     = mt_alt / mt_depth
+  ) |>
+  dplyr::left_join(
+    distinct(
+        res,
+        query_id,
+        seqnames,
+        gene_id,
+        position,
+        strand,
+        codone,
+        aminoacid,
+        protein_locus = protein_locus,
+        synonymous
+    ),
+    by = "query_id"
+  ) |>
+  dplyr::left_join(qc, by = c("seqnames", "pos")) |>
+  dplyr::mutate(
+    depth_ok  = wt_depth >= 10 & mt_depth >= 10
+  )
+
+# write intermediate results
+readr::write_csv(qc, "data/cln/variants/qc_all.csv")
+
+# filter by adj. p-value and synonymous
+qc <- dplyr::filter(qc, adjusted_pvalue <= 0.05, !synonymous)
+
+# write final result
+readr::write_csv(qc, "data/cln/variants/qc_filt.csv")
 
 # Get transcript metadata for genes from significant non-synonymous hits
 meta <- AnnotationDbi::select(
     TxDb.Paeruginosa.PA14,
-    keys = unique(as.character(qc$gene)),
+    keys = unique(as.character(qc$gene_id)),
     columns = c('GENEID', 'TXNAME', 'TXCHROM', 'TXSTART', 'TXEND', 'TXSTRAND'),
     keytype = 'GENEID'
+) |>
+dplyr::rename_with(tolower) |>
+dplyr::select(
+    gene_id   = geneid,
+    gene_name = txname,
+    start     = txstart,
+    end       = txend
 )
+
+# final table
+out <- meta |>
+  dplyr::left_join(qc, by = "gene_id") |>
+  dplyr::mutate(
+    qc       = c("fail", "pass")[1 + (mq >= 40)],
+    strand   = c("fail", "pass")[1 + strand_ok],
+    depth    = c("fail", "pass")[1 + depth_ok],
+    locus    = purrr::map_int(protein_locus, ~ as.integer(.x)[1]),
+  ) |>
+  dplyr::arrange(adjusted_pvalue, wt_af, 1 - mt_af) |>
+  dplyr::select(
+    gene_id,
+    gene_name,
+    position = pos,
+    codone,
+    aminoacid,
+    locus,
+    quality  = qc,
+    strand,
+    depth,
+    pval     = adjusted_pvalue
+  )
+
+# write data
+readr::write_csv(out, "data/cln/variants/final_candidates.csv")
+
+source("src/update_readme.R")
