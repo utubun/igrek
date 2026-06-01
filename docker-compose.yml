@@ -9,4 +9,3 @@ services:
       - ./entrypoint.sh:/entrypoint.sh
     working_dir: /data
     entrypoint: ["/bin/bash", "/entrypoint.sh"]
-    mem_limit: 16g
