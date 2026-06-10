@@ -6,3 +6,6 @@
 data/raw/
 data/cln/mapping/
 data/cln/preprocessing/
+
+# generated archives
+igrek_data.zip
